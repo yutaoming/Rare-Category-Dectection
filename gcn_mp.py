@@ -1,26 +1,120 @@
+"""GCN using basic message passing
+References:
+- Semi-Supervised Classification with Graph Convolutional Networks
+- Paper: https://arxiv.org/abs/1609.02907
+- Code: https://github.com/tkipf/gcn
+"""
 import argparse
+import math
 import time
+
+import dgl
 import numpy as np
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
-import dgl
-from dgl.data import register_data_args
 from dgl.data import CoraGraphDataset, CiteseerGraphDataset, PubmedGraphDataset
-from gcn import GCN
+from dgl.data import register_data_args
 
+
+def gcn_msg(edge):
+    msg = edge.src['h'] * edge.src['norm']
+    return {'m': msg}
+
+
+def gcn_reduce(node):
+    accum = torch.sum(node.mailbox['m'], 1) * node.data['norm']
+    return {'h': accum}
+
+
+class NodeApplyModule(nn.Module):
+    def __init__(self, out_feats, activation=None, bias=True):
+        super(NodeApplyModule, self).__init__()
+        if bias:
+            self.bias = nn.Parameter(torch.Tensor(out_feats))
+        else:
+            self.bias = None
+        self.activation = activation
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        if self.bias is not None:
+            stdv = 1. / math.sqrt(self.bias.size(0))
+            self.bias.data.uniform_(-stdv, stdv)
+
+    def forward(self, nodes):
+        h = nodes.data['h']
+        if self.bias is not None:
+            h = h + self.bias
+        if self.activation:
+            h = self.activation(h)
+        return {'h': h}
+
+
+class GCNLayer(nn.Module):
+    def __init__(self,
+                 g,
+                 in_feats,
+                 out_feats,
+                 activation,
+                 dropout,
+                 bias=True):
+        super(GCNLayer, self).__init__()
+        self.g = g
+        self.weight = nn.Parameter(torch.Tensor(in_feats, out_feats))
+        if dropout:
+            self.dropout = nn.Dropout(p=dropout)
+        else:
+            self.dropout = 0.
+        self.node_update = NodeApplyModule(out_feats, activation, bias)
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        stdv = 1. / math.sqrt(self.weight.size(1))
+        self.weight.data.uniform_(-stdv, stdv)
+
+    def forward(self, h):
+        if self.dropout:
+            h = self.dropout(h)
+        self.g.ndata['h'] = torch.mm(h, self.weight)
+        self.g.update_all(gcn_msg, gcn_reduce, self.node_update)
+        h = self.g.ndata.pop('h')
+        return h
+
+class GCN(nn.Module):
+    def __init__(self,
+                 g,
+                 in_feats,
+                 n_hidden,
+                 n_classes,
+                 n_layers,
+                 activation,
+                 dropout):
+        super(GCN, self).__init__()
+        self.layers = nn.ModuleList()
+        # input layer
+        self.layers.append(GCNLayer(g, in_feats, n_hidden, activation, dropout))
+        # hidden layers
+        for i in range(n_layers - 1):
+            self.layers.append(GCNLayer(g, n_hidden, n_hidden, activation, dropout))
+        # output layer
+        self.layers.append(GCNLayer(g, n_hidden, n_classes, None, dropout))
+
+    def forward(self, features):
+        h = features
+        for layer in self.layers:
+            h = layer(h)
+        return h
 
 def evaluate(model, features, labels, mask):
-    # model.eval()的作用是针对某些在train和predict两个阶段会有不同参数的层。比如Dropout层和BN层
-    # 用了model.eval()就不用再乘补偿系数
     model.eval()
     with torch.no_grad():
         logits = model(features)
         logits = logits[mask]
         labels = labels[mask]
         _, indices = torch.max(logits, dim=1)
-        correct = torch.sum(labels == indices)
+        correct = torch.sum(indices == labels)
         return correct.item() * 1.0 / len(labels)
-
 
 def main(args):
     # load and preprocess dataset
@@ -38,7 +132,7 @@ def main(args):
         cuda = False
     else:
         cuda = True
-        g = g.int().to(args.gpu)
+        g = g.to(args.gpu)
 
     features = g.ndata['feat']
     labels = g.ndata['label']
@@ -60,9 +154,8 @@ def main(args):
               test_mask.int().sum().item()))
 
     # add self loop
-    if args.self_loop:
-        g = dgl.remove_self_loop(g)
-        g = dgl.add_self_loop(g)
+    g = dgl.remove_self_loop(g)
+    g = dgl.add_self_loop(g)
     n_edges = g.number_of_edges()
 
     # normalization
@@ -115,29 +208,26 @@ def main(args):
 
     print()
     acc = evaluate(model, features, labels, test_mask)
-    print("Test accuracy {:.2%}".format(acc))
+    print("Test Accuracy {:.4f}".format(acc))
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='GCN')
     register_data_args(parser)
     parser.add_argument("--dropout", type=float, default=0.5,
-                        help="dropout probability")
+            help="dropout probability")
     parser.add_argument("--gpu", type=int, default=-1,
-                        help="gpu")
+            help="gpu")
     parser.add_argument("--lr", type=float, default=1e-2,
-                        help="learning rate")
+            help="learning rate")
     parser.add_argument("--n-epochs", type=int, default=200,
-                        help="number of training epochs")
+            help="number of training epochs")
     parser.add_argument("--n-hidden", type=int, default=16,
-                        help="number of hidden gcn units")
+            help="number of hidden gcn units")
     parser.add_argument("--n-layers", type=int, default=1,
-                        help="number of hidden gcn layers")
+            help="number of hidden gcn layers")
     parser.add_argument("--weight-decay", type=float, default=5e-4,
-                        help="Weight for L2 loss")
-    parser.add_argument("--self-loop", action='store_true',
-                        help="graph self-loop (default=False)")
-    parser.set_defaults(self_loop=False)
+            help="Weight for L2 loss")
     args = parser.parse_args()
     print(args)
 
