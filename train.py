@@ -19,11 +19,13 @@ def evaluate(model, features, labels, mask):
         labels = labels[mask]
         _, indices = torch.max(logits, dim=1)
         correct = torch.sum(labels == indices)
+        # 计算正确率
         return correct.item() * 1.0 / len(labels)
 
 
 def main(args):
     # load and preprocess dataset
+    t0 = time.time()
     if args.dataset == 'cora':
         data = CoraGraphDataset()
     elif args.dataset == 'citeseer':
