@@ -5,6 +5,7 @@ import torch
 
 IMBALANCE_THRESHOLD = 101
 
+
 def load_data_blog():
     mat = loadmat('data/BlogCatalog/blogcatalog.mat')
     adj = mat['network']
@@ -19,9 +20,9 @@ def load_data_blog():
     # label 应该是一个稀疏矩阵的形式
     # todense 可以把稀疏矩阵转化成正常矩阵的形式
     # Reference: https://blog.csdn.net/weixin_42067234/article/details/80247194
-    labels = np.array(label.todense().argmax(axis = 1)).squeeze()
+    labels = np.array(label.todense().argmax(axis=1)).squeeze()
     # 因为labels中15直接跳到了17，所以从17开始统一 -1
-    labels[labels>16] = labels[labels>16]-1
+    labels[labels > 16] = labels[labels > 16] - 1
     print("改变labels的顺序,稀有类别在最后")
     labels = refine_label_order(labels)
 
@@ -48,9 +49,9 @@ def normalize(mx):
 # 从0到23是多数类，从24到37是稀有类
 def refine_label_order(labels):
     j = 0
-    for i in range(labels.max(),0,-1):
-        if sum(labels==i) >= IMBALANCE_THRESHOLD and i>j:
-            while sum(labels==j) >= IMBALANCE_THRESHOLD and i>j:
+    for i in range(labels.max(), 0, -1):
+        if sum(labels == i) >= IMBALANCE_THRESHOLD and i > j:
+            while sum(labels == j) >= IMBALANCE_THRESHOLD and i > j:
                 j = j+1
             if i > j:
                 head_ind = labels == j
@@ -74,6 +75,7 @@ def sparse_mx_to_torch_sparse_tensor(sparse_mx):
     values = torch.from_numpy(sparse_mx.data)
     shape = torch.Size(sparse_mx.shape)
     return torch.sparse.FloatTensor(indices, values, shape)
+
 
 if __name__ == '__main__':
     load_data_blog()

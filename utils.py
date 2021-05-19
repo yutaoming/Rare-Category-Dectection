@@ -2,46 +2,49 @@ from load_data import load_data_blog
 import numpy as np
 import torch
 import random
+import sklearn
+
 
 # 如何随机生成 训练集 测试集？
 # 只要把数组随机排序，然后按比例切片即可
+# for blog
 def split_mask(labels):
     """用于生成trian_mask, val_mask, test_mask"""
-    #labels: n-dim Longtensor, each element in [0,...,m-1].
+    # labels: n-dim Longtensor, each element in [0,...,m-1].
     num_classes = len(set(labels.tolist()))
-    class_masks = [] # class-wise index
+    # 对应class的索引
+    class_masks = []
     train_mask = []
     val_mask = []
     test_mask = []
     # 生成一个num_classes * 3 的ndarray
     # 用来记录各个类 train val test的数量 0.25, 0.25, 0.5
-    c_num_mat = np.zeros((num_classes,3)).astype(int)
+    c_num_mat = np.zeros((num_classes, 3)).astype(int)
     # 0是false 0以外是true
     for i in range(num_classes):
-        class_mask = (labels==i).nonzero()[:,-1].tolist()
+        class_mask = (labels == i).nonzero()[:, -1].tolist()
         class_num = len(class_mask)
         # print('{:d}-th class sample number: {:d}'.format(i,len(class_mask)))
-        # shuffle 吧一个数组打乱重新排序 就像是洗牌
+        # shuffle 把一个数组打乱重新排序 就像是洗牌
         random.shuffle(class_mask)
         class_masks.append(class_mask)
 
-        if class_num <4:
+        if class_num < 4:
             if class_num < 3:
                 print("too small class type")
                 # 一般不会执行到这步，除非某个类的数量小于3
                 ipdb.set_trace()
-            c_num_mat[i,0] = 1
-            c_num_mat[i,1] = 1
-            c_num_mat[i,2] = 1
+            c_num_mat[i, 0] = 1
+            c_num_mat[i, 1] = 1
+            c_num_mat[i, 2] = 1
         else:
-            c_num_mat[i,0] = int(class_num/4)
-            c_num_mat[i,1] = int(class_num/4)
-            c_num_mat[i,2] = int(class_num/2)
+            c_num_mat[i, 0] = int(class_num / 4)
+            c_num_mat[i, 1] = int(class_num / 4)
+            c_num_mat[i, 2] = int(class_num / 2)
 
-
-        train_mask = train_mask + class_mask[:c_num_mat[i,0]]
-        val_mask = val_mask + class_mask[c_num_mat[i,0]:c_num_mat[i,0]+c_num_mat[i,1]]
-        test_mask = test_mask + class_mask[c_num_mat[i,0]+c_num_mat[i,1]:c_num_mat[i,0]+c_num_mat[i,1]+c_num_mat[i,2]]
+        train_mask += class_mask[:c_num_mat[i, 0]]
+        val_mask += class_mask[c_num_mat[i, 0]:c_num_mat[i, 0] + c_num_mat[i, 1]]
+        test_mask += class_mask[c_num_mat[i, 0] + c_num_mat[i, 1]:c_num_mat[i, 0] + c_num_mat[i, 1] + c_num_mat[i, 2]]
 
     # 避免出现相同的类连在一起的情况
     random.shuffle(train_mask)
@@ -57,8 +60,44 @@ def split_mask(labels):
 
     c_num_mat = np.array(c_num_mat)
     c_num_mat = torch.from_numpy(c_num_mat)
-
+    #
     return train_mask, val_mask, test_mask, c_num_mat
+
+
+# evaluation function
+# 一共三个指标
+# 第一个是 ACC 计算测试集的accuracy 因为稀有类只是少数，所以不够准确
+# 第二个是 AUC-ROC 对每个类都求 然后取平均值
+# 第三个是 F1 综合了precision和recall 同样是对每个类都求，然后取平均
+def print_evaluation_metrics(output, labels, class_num_list, pre='valid'):
+    # class_num_list: 一个记录类数目的列表
+    pre_num = 0
+    # print class-wise performance
+    for i in range(labels.max()+1):
+
+        cur_tpr = accuracy(output[pre_num:pre_num+class_num_list[i]], labels[pre_num:pre_num+class_num_list[i]])
+        print(str(pre)+" class {:d} True Positive Rate: {:.3f}".format(i, cur_tpr.item()))
+
+        index_negative = labels != i
+        labels_negative = labels.new(labels.shape).fill_(i)
+
+        cur_fpr = accuracy(output[index_negative, :], labels_negative[index_negative])
+        print(str(pre)+" class {:d} False Positive Rate: {:.3f}".format(i, cur_fpr.item()))
+
+        pre_num = pre_num + class_num_list[i]
+
+    # ipdb.set_trace()
+    if labels.max() > 1:
+        auc_score = roc_auc_score(labels.detach(), F.softmax(output, dim=-1).detach(), average='macro',
+                                  multi_class='ovr')
+    else:
+        auc_score = roc_auc_score(labels.detach(), F.softmax(output, dim=-1)[:, 1].detach(), average='macro')
+
+    macro_F = f1_score(labels.detach(), torch.argmax(output, dim=-1).detach(), average='macro')
+    print(str(pre) + ' current auc-roc score: {:f}, current macro_F score: {:f}'.format(auc_score, macro_F))
+
+    return
+
 
 if __name__ == '__main__':
     features, labels, adj = load_data_blog()
