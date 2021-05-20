@@ -2,10 +2,12 @@ from load_data import load_data_blog
 import numpy as np
 import torch
 import random
-import sklearn
+from sklearn.metrics import roc_auc_score, f1_score
 
 
 # 如何随机生成 训练集 测试集？
+# 对所有类做如下操作：
+# 先获得当前类的
 # 只要把数组随机排序，然后按比例切片即可
 # for blog
 def split_mask(labels):
@@ -22,6 +24,7 @@ def split_mask(labels):
     c_num_mat = np.zeros((num_classes, 3)).astype(int)
     # 0是false 0以外是true
     for i in range(num_classes):
+        # class_mask是某个类的索引
         class_mask = (labels == i).nonzero()[:, -1].tolist()
         class_num = len(class_mask)
         # print('{:d}-th class sample number: {:d}'.format(i,len(class_mask)))
@@ -60,7 +63,7 @@ def split_mask(labels):
 
     c_num_mat = np.array(c_num_mat)
     c_num_mat = torch.from_numpy(c_num_mat)
-    #
+    # 只有train_mask顺序是乱的，val_mask，test_mask会按照类别的顺序
     return train_mask, val_mask, test_mask, c_num_mat
 
 
@@ -74,13 +77,14 @@ def print_evaluation_metrics(output, labels, class_num_list, pre='valid'):
     pre_num = 0
     # print class-wise performance
     for i in range(labels.max()+1):
-
+        # 如果labels[mask]，那么label则会按照索引的顺序来 而不是labels自带的顺序
         cur_tpr = accuracy(output[pre_num:pre_num+class_num_list[i]], labels[pre_num:pre_num+class_num_list[i]])
         print(str(pre)+" class {:d} True Positive Rate: {:.3f}".format(i, cur_tpr.item()))
 
         index_negative = labels != i
+        # 生成一个全是i的labels
         labels_negative = labels.new(labels.shape).fill_(i)
-
+        # output[index_negative, :] 预测不是i类的
         cur_fpr = accuracy(output[index_negative, :], labels_negative[index_negative])
         print(str(pre)+" class {:d} False Positive Rate: {:.3f}".format(i, cur_fpr.item()))
 
@@ -99,6 +103,16 @@ def print_evaluation_metrics(output, labels, class_num_list, pre='valid'):
     return
 
 
+def accuracy(output, labels):
+    # max(1)是返回每一行最大值组成的一维数组
+    preds = output.max(1)[1].type_as(labels)
+    correct = preds.eq(labels).double()
+    correct = correct.sum()
+    return correct / len(labels)
+
+
 if __name__ == '__main__':
     features, labels, adj = load_data_blog()
-    split_mask(labels)
+    train_mask, val_mask, test_mask, c_num_mat = split_mask(labels)
+# 要做的事：1. 在cora上测试evaluation  1.5.在cora上人为制造稀有类，重复1  2.在blog上跑GCN  3.在blog上测试evaluation
+# 4. 实现active learning

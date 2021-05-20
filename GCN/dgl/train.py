@@ -5,8 +5,8 @@ import torch
 import torch.nn.functional as F
 import dgl
 from dgl.data import register_data_args
-from dgl.data import CoraGraphDataset, CiteseerGraphDataset, PubmedGraphDataset
-from gcn import GCN
+from dgl.data import CoraGraphDataset
+from GCN.dgl.gcn import GCN
 
 
 def evaluate(model, features, labels, mask):
@@ -26,15 +26,7 @@ def evaluate(model, features, labels, mask):
 def main(args):
     # load and preprocess dataset
     t0 = time.time()
-    if args.dataset == 'cora':
-        data = CoraGraphDataset()
-    elif args.dataset == 'citeseer':
-        data = CiteseerGraphDataset()
-    elif args.dataset == 'pubmed':
-        data = PubmedGraphDataset()
-    else:
-        raise ValueError('Unknown dataset: {}'.format(args.dataset))
-
+    data = CoraGraphDataset()
     g = data[0]
     if args.gpu < 0:
         cuda = False
@@ -45,6 +37,7 @@ def main(args):
     features = g.ndata['feat']
     labels = g.ndata['label']
     train_mask = g.ndata['train_mask']
+    print(g)
     val_mask = g.ndata['val_mask']
     test_mask = g.ndata['test_mask']
     in_feats = features.shape[1]
@@ -129,7 +122,7 @@ if __name__ == '__main__':
                         help="gpu")
     parser.add_argument("--lr", type=float, default=1e-2,
                         help="learning rate")
-    parser.add_argument("--n-epochs", type=int, default=200,
+    parser.add_argument("--n-epochs", type=int, default=10,
                         help="number of training epochs")
     parser.add_argument("--n-hidden", type=int, default=16,
                         help="number of hidden gcn units")

@@ -29,7 +29,6 @@ def load_data_blog():
     features = torch.from_numpy(features)
     labels = torch.from_numpy(labels)
     adj = sparse_mx_to_torch_sparse_tensor(adj)
-
     return features, labels, adj
 
 
