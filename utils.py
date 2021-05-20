@@ -3,7 +3,7 @@ import numpy as np
 import torch
 import random
 from sklearn.metrics import roc_auc_score, f1_score
-
+import torch.nn.functional as F
 
 # cora 用
 # c_train_num是一个数组，用于记录每个类有多少个节点用于训练
@@ -113,7 +113,6 @@ def split_mask(labels):
     c_num_mat = np.array(c_num_mat)
     c_num_mat = torch.from_numpy(c_num_mat)
     # 只有train_mask顺序是乱的，val_mask，test_mask会按照类别的顺序
-    print(train_mask)
     return train_mask, val_mask, test_mask, c_num_mat
 
 
@@ -122,23 +121,24 @@ def split_mask(labels):
 # 第一个是 ACC 计算测试集的accuracy 因为稀有类只是少数，所以不够准确
 # 第二个是 AUC-ROC 对每个类都求 然后取平均值
 # 第三个是 F1 综合了precision和recall 同样是对每个类都求，然后取平均
-def print_evaluation_metrics(output, labels, class_num_list, pre='valid'):
+def print_evaluation_metrics(output, labels, pre='valid'):
     # class_num_list: 一个记录类数目的列表
     pre_num = 0
     # print class-wise performance
-    for i in range(labels.max()+1):
-        # 如果labels[mask]，那么label则会按照索引的顺序来 而不是labels自带的顺序
-        cur_tpr = accuracy(output[pre_num:pre_num+class_num_list[i]], labels[pre_num:pre_num+class_num_list[i]])
-        print(str(pre)+" class {:d} True Positive Rate: {:.3f}".format(i, cur_tpr.item()))
-
-        index_negative = labels != i
-        # 生成一个全是i的labels
-        labels_negative = labels.new(labels.shape).fill_(i)
-        # output[index_negative, :] 预测不是i类的
-        cur_fpr = accuracy(output[index_negative, :], labels_negative[index_negative])
-        print(str(pre)+" class {:d} False Positive Rate: {:.3f}".format(i, cur_fpr.item()))
-
-        pre_num = pre_num + class_num_list[i]
+    # 如果添加以下代码，请把class_num_list添加到函数参数列表中
+    # for i in range(labels.max()+1):
+    #     # 如果labels[mask]，那么label则会按照索引的顺序来 而不是labels自带的顺序
+    #     cur_tpr = accuracy(output[pre_num:pre_num+class_num_list[i]], labels[pre_num:pre_num+class_num_list[i]])
+    #     print(str(pre)+" class {:d} True Positive Rate: {:.3f}".format(i, cur_tpr.item()))
+    #
+    #     index_negative = labels != i
+    #     # 生成一个全是i的labels
+    #     labels_negative = labels.new(labels.shape).fill_(i)
+    #     # output[index_negative, :] 预测不是i类的
+    #     cur_fpr = accuracy(output[index_negative, :], labels_negative[index_negative])
+    #     print(str(pre)+" class {:d} False Positive Rate: {:.3f}".format(i, cur_fpr.item()))
+    #
+    #     pre_num = pre_num + class_num_list[i]
 
     # ipdb.set_trace()
     if labels.max() > 1:

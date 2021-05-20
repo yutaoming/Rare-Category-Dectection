@@ -9,13 +9,13 @@ import torch
 import torch.nn.functional as F
 import torch.optim as optim
 
-from utils import accuracy, split_mask, split_arti
+from utils import accuracy, split_mask, split_arti, print_evaluation_metrics
 from GCN.pytorch.models import GCN
 from load_data import load_data_cora, load_data_blog
 
 # Training settings
 parser = argparse.ArgumentParser()
-# parser.add_argument('--dataset', type=str, default="")
+parser.add_argument('--dataset', type=str, default='cora')
 parser.add_argument('--no-cuda', action='store_true', default=False,
                     help='Disables CUDA training.')
 parser.add_argument('--fastmode', action='store_true', default=False,
@@ -40,15 +40,28 @@ torch.manual_seed(args.seed)
 if args.cuda:
     torch.cuda.manual_seed(args.seed)
 
+# for artificial imbalanced setting: only the last im_class_num classes are imbalanced
+# TODO: 处理cora，使之成为稀有类数据集
+c_train_num = []
+for i in range(labels.max().item() + 1):
+    if args.imbalance and i > labels.max().item()-im_class_num: #only imbalance the last classes
+        c_train_num.append(int(class_sample_num*args.im_ratio))
+
+    else:
+        c_train_num.append(class_sample_num)
+
 # Load data
-# adj, features, labels = load_data_cora()
-# c_train_num = [20, 20, 20, 20, 20, 20, 20]
-# train_mask, val_mask, test_mask, c_num_mat = split_arti(labels, c_train_num)
-
-adj, features, labels = load_data_blog()
-train_mask, val_mask, test_mask, c_num_mat = split_mask(labels)
+if args.dataset == 'cora':
+    adj, features, labels = load_data_cora()
+    c_train_num = [20, 20, 20, 20, 20, 20, 20]
+    train_mask, val_mask, test_mask, c_num_mat = split_arti(labels, c_train_num)
+elif args.dataset == 'blog':
+    adj, features, labels = load_data_blog()
+    train_mask, val_mask, test_mask, c_num_mat = split_mask(labels)
+else:
+    print("no this dataset: {args.dataset}")
+    exit()
 t = time.time()
-
 # Model and optimizer
 model = GCN(nfeat=features.shape[1],
             nhid=args.hidden,
@@ -102,6 +115,7 @@ def test():
     print("Test set results:",
           "loss= {:.4f}".format(loss_test.item()),
           "accuracy= {:.4f}".format(acc_test.item()))
+    print_evaluation_metrics(output, labels, 'test')
 
 
 if __name__ == '__main__':
