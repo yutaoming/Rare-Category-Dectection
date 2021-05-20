@@ -6,7 +6,7 @@ import torch.nn.functional as F
 import dgl
 from dgl.data import register_data_args
 from dgl.data import CoraGraphDataset
-from GCN.dgl.gcn import GCN
+from GCN.dgl.gcn_dgl import GCN
 
 
 def evaluate(model, features, labels, mask):

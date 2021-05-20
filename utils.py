@@ -1,8 +1,56 @@
-from load_data import load_data_blog
+from load_data import load_data_blog, load_data_cora
 import numpy as np
 import torch
 import random
 from sklearn.metrics import roc_auc_score, f1_score
+
+
+# cora 用
+# c_train_num是一个数组，用于记录每个类有多少个节点用于训练
+def split_arti(labels, c_train_num):
+    # labels: n-dim Longtensor, each element in [0,...,m-1].
+    # cora: m=7
+    num_classes = len(set(labels.tolist()))
+    class_masks = []  # class-wise index
+    train_mask = []
+    val_mask = []
+    test_mask = []
+    c_num_mat = np.zeros((num_classes, 3)).astype(int)
+    # 每个类有25个节点用于验证集
+    c_num_mat[:, 1] = 25
+    # 每个类用55个节点用于测试集
+    c_num_mat[:, 2] = 55
+
+    for i in range(num_classes):
+        # 得到i的索引
+        class_mask = (labels == i).nonzero()[:, -1].tolist()
+        # print('{:d}-th class sample number: {:d}'.format(i,len(class_mask)))
+        random.shuffle(class_mask)
+        class_masks.append(class_mask)
+
+        train_mask = train_mask + class_mask[:c_train_num[i]]
+        c_num_mat[i, 0] = c_train_num[i]
+
+        val_mask = val_mask + class_mask[c_train_num[i]:c_train_num[i]+25]
+        test_mask = test_mask + class_mask[c_train_num[i]+25:c_train_num[i]+80]
+
+    random.shuffle(train_mask)
+
+    # list -> numpy -> tensor
+    train_mask = np.array(train_mask)
+    train_mask = torch.from_numpy(train_mask)
+
+    val_mask = np.array(val_mask)
+    val_mask = torch.from_numpy(val_mask)
+
+    test_mask = np.array(test_mask)
+    test_mask = torch.from_numpy(test_mask)
+
+    c_num_mat = np.array(c_num_mat)
+    c_num_mat = torch.from_numpy(c_num_mat)
+    # c_num_mat = torch.LongTensor(c_num_mat)
+    
+    return train_mask, val_mask, test_mask, c_num_mat
 
 
 # 如何随机生成 训练集 测试集？
@@ -14,6 +62,7 @@ def split_mask(labels):
     """用于生成trian_mask, val_mask, test_mask"""
     # labels: n-dim Longtensor, each element in [0,...,m-1].
     num_classes = len(set(labels.tolist()))
+    # num_classes = 38
     # 对应class的索引
     class_masks = []
     train_mask = []
@@ -64,6 +113,7 @@ def split_mask(labels):
     c_num_mat = np.array(c_num_mat)
     c_num_mat = torch.from_numpy(c_num_mat)
     # 只有train_mask顺序是乱的，val_mask，test_mask会按照类别的顺序
+    print(train_mask)
     return train_mask, val_mask, test_mask, c_num_mat
 
 
@@ -111,8 +161,12 @@ def accuracy(output, labels):
     return correct / len(labels)
 
 
-if __name__ == '__main__':
+def main():
     features, labels, adj = load_data_blog()
     train_mask, val_mask, test_mask, c_num_mat = split_mask(labels)
+
+
+if __name__ == '__main__':
+    main()
 # 要做的事：1. 在cora上测试evaluation  1.5.在cora上人为制造稀有类，重复1  2.在blog上跑GCN  3.在blog上测试evaluation
 # 4. 实现active learning
