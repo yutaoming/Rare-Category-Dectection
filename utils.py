@@ -155,6 +155,7 @@ def print_evaluation_metrics(output, labels, pre='valid'):
 
 def accuracy(output, labels):
     # max(1)是返回每一行最大值组成的一维数组
+    # [0]是最大值；[1]是最大值的索引
     preds = output.max(1)[1].type_as(labels)
     correct = preds.eq(labels).double()
     correct = correct.sum()
