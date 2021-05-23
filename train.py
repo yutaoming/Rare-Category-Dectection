@@ -31,6 +31,7 @@ parser.add_argument('--hidden', type=int, default=16,
                     help='Number of hidden units.')
 parser.add_argument('--dropout', type=float, default=0.5,
                     help='Dropout rate (1 - keep probability).')
+parser.add_argument('--im_ratio', type=float, default=0.5)
 
 args = parser.parse_args()
 args.cuda = not args.no_cuda and torch.cuda.is_available()
@@ -40,20 +41,19 @@ torch.manual_seed(args.seed)
 if args.cuda:
     torch.cuda.manual_seed(args.seed)
 
-# for artificial imbalanced setting: only the last im_class_num classes are imbalanced
-# TODO: 处理cora，使之成为稀有类数据集
-c_train_num = []
-for i in range(labels.max().item() + 1):
-    if args.imbalance and i > labels.max().item()-im_class_num: #only imbalance the last classes
-        c_train_num.append(int(class_sample_num*args.im_ratio))
-
-    else:
-        c_train_num.append(class_sample_num)
 
 # Load data
 if args.dataset == 'cora':
     adj, features, labels = load_data_cora()
-    c_train_num = [20, 20, 20, 20, 20, 20, 20]
+    im_class_num = 3
+    class_sample_num = 20
+    # for artificial imbalanced setting: only the last im_class_num classes are imbalanced
+    c_train_num = []
+    for i in range(labels.max().item() + 1):
+        if i > labels.max().item() - im_class_num:  # only imbalance the last classes
+            c_train_num.append(int(class_sample_num * args.im_ratio))
+        else:
+            c_train_num.append(class_sample_num)
     train_mask, val_mask, test_mask, c_num_mat = split_arti(labels, c_train_num)
 elif args.dataset == 'blog':
     adj, features, labels = load_data_blog()
@@ -62,6 +62,7 @@ else:
     print("no this dataset: {args.dataset}")
     exit()
 t = time.time()
+
 # Model and optimizer
 model = GCN(nfeat=features.shape[1],
             nhid=args.hidden,
