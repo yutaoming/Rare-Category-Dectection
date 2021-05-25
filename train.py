@@ -35,6 +35,8 @@ parser.add_argument('--im_ratio', type=float, default=0.5)
 parser.add_argument('--setting', type=str, default='no',
                     choices=['no', 'active_learning', 'cost_sensitive', 'pseudo_active_learning'])
 parser.add_argument('--up_scale', type=float, default=1)
+# 主动学习的轮数
+parser.add_argument('--rounds', type=int, default=1)
 
 args = parser.parse_args()
 args.cuda = not args.no_cuda and torch.cuda.is_available()

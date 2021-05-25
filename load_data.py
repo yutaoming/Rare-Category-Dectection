@@ -28,7 +28,7 @@ def load_data_cora(path="/Users/yutaoming/PycharmProjects/Rare-Category-Dectecti
     adj = sp.coo_matrix((np.ones(edges.shape[0]), (edges[:, 0], edges[:, 1])),
                         shape=(labels.shape[0], labels.shape[0]),
                         dtype=np.float32)
-
+    print(adj[0][0])
     # build symmetric adjacency matrix
     adj = adj + adj.T.multiply(adj.T > adj) - adj.multiply(adj.T > adj)
 
@@ -117,5 +117,4 @@ def sparse_mx_to_torch_sparse_tensor(sparse_mx):
 
 
 if __name__ == '__main__':
-    load_data_blog()
     load_data_cora()

@@ -162,6 +162,14 @@ def accuracy(output, labels):
     return correct / len(labels)
 
 
+def get_degree_cora():
+    # 得到节点的度
+    path = "/Users/yutaoming/PycharmProjects/Rare-Category-Dectection/data/cora/"
+    dataset = "cora"
+    idx_features_labels = np.genfromtxt("{}{}.content".format(path, dataset),
+                                        dtype=np.dtype(str))
+
+
 def main():
     features, labels, adj = load_data_blog()
     train_mask, val_mask, test_mask, c_num_mat = split_mask(labels)
