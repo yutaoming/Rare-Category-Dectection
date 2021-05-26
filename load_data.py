@@ -5,7 +5,7 @@ import torch
 
 IMBALANCE_THRESHOLD = 101
 
-def load_data_cora(path="/Users/yutaoming/PycharmProjects/Rare-Category-Dectection/data/cora/", dataset="cora"):
+def load_data_cora(path="/Users/yutaoming/PycharmProjects/Rare-Category-Detection/data/cora/", dataset="cora"):
     print('Loading {} dataset...'.format(dataset))
 
     idx_features_labels = np.genfromtxt("{}{}.content".format(path, dataset),
@@ -28,7 +28,7 @@ def load_data_cora(path="/Users/yutaoming/PycharmProjects/Rare-Category-Dectecti
     adj = sp.coo_matrix((np.ones(edges.shape[0]), (edges[:, 0], edges[:, 1])),
                         shape=(labels.shape[0], labels.shape[0]),
                         dtype=np.float32)
-    print(adj[0][0])
+    print(adj)
     # build symmetric adjacency matrix
     adj = adj + adj.T.multiply(adj.T > adj) - adj.multiply(adj.T > adj)
 
@@ -48,7 +48,7 @@ def load_data_cora(path="/Users/yutaoming/PycharmProjects/Rare-Category-Dectecti
 
 
 def load_data_blog():
-    mat = loadmat('/Users/yutaoming/PycharmProjects/Rare-Category-Dectection/data/BlogCatalog/blogcatalog.mat')
+    mat = loadmat('/Users/yutaoming/PycharmProjects/Rare-Category-Detection/data/BlogCatalog/blogcatalog.mat')
     adj = mat['network']
     label = mat['group']
 

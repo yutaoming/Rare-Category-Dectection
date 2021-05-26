@@ -4,6 +4,7 @@ import torch
 import random
 from sklearn.metrics import roc_auc_score, f1_score
 import torch.nn.functional as F
+import scipy.sparse as sp
 
 # cora 用
 # c_train_num是一个数组，用于记录每个类有多少个节点用于训练
@@ -164,10 +165,54 @@ def accuracy(output, labels):
 
 def get_degree_cora():
     # 得到节点的度
-    path = "/Users/yutaoming/PycharmProjects/Rare-Category-Dectection/data/cora/"
+    # 返回一个2708 * 1的张量
+    path = "/Users/yutaoming/PycharmProjects/Rare-Category-Detection/data/cora/"
     dataset = "cora"
     idx_features_labels = np.genfromtxt("{}{}.content".format(path, dataset),
                                         dtype=np.dtype(str))
+
+    labels = idx_features_labels[:, -1]
+    classes_dict = {'Neural_Networks': 0, 'Reinforcement_Learning': 1, 'Probabilistic_Methods': 2, 'Case_Based': 3,
+                    'Theory': 4, 'Rule_Learning': 5, 'Genetic_Algorithms': 6}
+    labels = np.array(list(map(classes_dict.get, labels)))
+
+    # build graph
+    idx = np.array(idx_features_labels[:, 0], dtype=np.int32)
+    idx_map = {j: i for i, j in enumerate(idx)}
+    edges_unordered = np.genfromtxt("{}{}.cites".format(path, dataset),
+                                    dtype=np.int32)
+    edges = np.array(list(map(idx_map.get, edges_unordered.flatten())),
+                     dtype=np.int32).reshape(edges_unordered.shape)
+    # Constructing a matrix with duplicate indices
+    # row = np.array([0, 0, 1, 3, 1, 0, 0])
+    # col = np.array([0, 2, 1, 3, 1, 0, 0])
+    # data = np.array([1, 1, 1, 1, 1, 1, 1])
+    # coo = coo_matrix((data, (row, col)), shape=(4, 4))
+    # Duplicate indices are maintained until implicitly or explicitly summed
+    # np.max(coo.data)
+    #
+    # coo.toarray()
+    # array([[3, 0, 1, 0],
+    #        [0, 2, 0, 0],
+    #        [0, 0, 0, 0],
+    #        [0, 0, 0, 1]])
+    adj = sp.coo_matrix((np.ones(edges.shape[0]), (edges[:, 0], edges[:, 1])),
+                        shape=(labels.shape[0], labels.shape[0]),
+                        dtype=np.float32)
+    adj = adj.toarray()
+    degrees = []
+    sum = 0
+    for i in range(adj.shape[0]):
+        degree = 0
+        for j in range(adj.shape[1]):
+            if adj[i][j] == 1:
+                degree += 1
+        sum += degree
+        degrees.append(degree)
+
+    degrees = torch.tensor(degrees)
+    return degrees
+
 
 
 def main():
@@ -176,6 +221,6 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    get_degree_cora()
 # 要做的事：1. 在cora上测试evaluation  1.5.在cora上人为制造稀有类，重复1  2.在blog上跑GCN  3.在blog上测试evaluation
 # 4. 实现active learning
