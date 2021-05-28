@@ -1,10 +1,11 @@
-from load_data import load_data_blog, load_data_cora
+from load_data import load_data_blog, load_data_cora, sparse_mx_to_torch_sparse_tensor
 import numpy as np
 import torch
 import random
 from sklearn.metrics import roc_auc_score, f1_score
 import torch.nn.functional as F
 import scipy.sparse as sp
+from scipy.io import loadmat
 
 # cora 用
 # c_train_num是一个数组，用于记录每个类有多少个节点用于训练
@@ -199,20 +200,36 @@ def get_degree_cora():
     adj = sp.coo_matrix((np.ones(edges.shape[0]), (edges[:, 0], edges[:, 1])),
                         shape=(labels.shape[0], labels.shape[0]),
                         dtype=np.float32)
-    adj = adj.toarray()
-    degrees = []
-    sum = 0
-    for i in range(adj.shape[0]):
-        degree = 0
-        for j in range(adj.shape[1]):
-            if adj[i][j] == 1:
-                degree += 1
-        sum += degree
-        degrees.append(degree)
+    adj = adj.tocoo().astype(np.float32)
+    indices = torch.from_numpy(np.vstack((adj.row, adj.col)).astype(np.int64))
+    # cora 数据集一条边只算了一次 indices.shape = [2, 2708]
+    degrees = [0] * 2708
+    for i in range(indices.shape[0]):
+        for j in range(indices.shape[1]):
+            degrees[indices[i][j]] += 1
 
-    degrees = torch.tensor(degrees)
+    degrees = torch.tensor(degrees, dtype=int)
     return degrees
 
+
+def get_degree_blog():
+    mat = loadmat('/Users/yutaoming/PycharmProjects/Rare-Category-Detection/data/BlogCatalog/blogcatalog.mat')
+    adj = mat['network']
+    adj = adj.tocoo().astype(np.float32)
+    indices = torch.from_numpy(np.vstack((adj.row, adj.col)).astype(np.int64))
+    print(indices.shape)
+    # 10312是blog的节点数
+    degrees = [0] * 10312
+    for i in range(indices.shape[0]):
+        for j in range(indices.shape[1]):
+            degrees[indices[i][j]] += 1
+    # blog 数据集一条边被算了两次 indices.shape = [2, 667966]
+    # 所以这里需要除以2
+    for i in range(10312):
+        degrees[i] /= 2
+
+    degrees = torch.tensor(degrees, dtype=int)
+    return degrees
 
 
 def main():
@@ -221,6 +238,6 @@ def main():
 
 
 if __name__ == '__main__':
-    get_degree_cora()
+    get_degree_blog()
 # 要做的事：1. 在cora上测试evaluation  1.5.在cora上人为制造稀有类，重复1  2.在blog上跑GCN  3.在blog上测试evaluation
 # 4. 实现active learning

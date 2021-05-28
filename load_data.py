@@ -28,7 +28,7 @@ def load_data_cora(path="/Users/yutaoming/PycharmProjects/Rare-Category-Detectio
     adj = sp.coo_matrix((np.ones(edges.shape[0]), (edges[:, 0], edges[:, 1])),
                         shape=(labels.shape[0], labels.shape[0]),
                         dtype=np.float32)
-    print(adj)
+
     # build symmetric adjacency matrix
     adj = adj + adj.T.multiply(adj.T > adj) - adj.multiply(adj.T > adj)
 
@@ -52,7 +52,7 @@ def load_data_blog():
     adj = mat['network']
     label = mat['group']
 
-    embedding = np.loadtxt('/Users/yutaoming/PycharmProjects/Rare-Category-Dectection/data/BlogCatalog/blogcatalog.embeddings_64')
+    embedding = np.loadtxt('/Users/yutaoming/PycharmProjects/Rare-Category-Detection/data/BlogCatalog/blogcatalog.embeddings_64')
     # 这里-1 是因为embedding中有一项表示节点id
     feature = np.zeros((embedding.shape[0], embedding.shape[1]-1))
     feature[embedding[:, 0].astype(int), :] = embedding[:, 1:]
@@ -117,4 +117,4 @@ def sparse_mx_to_torch_sparse_tensor(sparse_mx):
 
 
 if __name__ == '__main__':
-    load_data_cora()
+    load_data_blog()
