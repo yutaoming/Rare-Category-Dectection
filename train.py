@@ -36,7 +36,7 @@ parser.add_argument('--setting', type=str, default='no',
                     choices=['no', 'active_learning', 'cost_sensitive', 'pseudo_active_learning'])
 parser.add_argument('--up_scale', type=float, default=1)
 # 主动学习的轮数
-parser.add_argument('--rounds', type=int, default=1)
+parser.add_argument('--rounds', type=int, default=10)
 
 args = parser.parse_args()
 args.cuda = not args.no_cuda and torch.cuda.is_available()
@@ -93,10 +93,12 @@ def train(epoch):
     model.train()
     optimizer.zero_grad()
     output = model(features, adj)
+    # 使用cost sensitive的函数
     if args.setting == 'active_learning' or 'cost_sensitive' or 'pseudo_active_learning':
         weight = features.new((labels.max().item() + 1)).fill_(1)
         weight[-im_class_num:] = 1+args.up_scale
         loss_train = F.cross_entropy(output[train_mask], labels[train_mask], weight=weight.float())
+    # 使用常规的损失函数
     else:
         loss_train = F.nll_loss(output[train_mask], labels[train_mask])
     acc_train = accuracy(output[train_mask], labels[train_mask])
@@ -111,12 +113,13 @@ def train(epoch):
 
     loss_val = F.nll_loss(output[val_mask], labels[val_mask])
     acc_val = accuracy(output[val_mask], labels[val_mask])
-    print('Epoch: {:04d}'.format(epoch+1),
-          'loss_train: {:.4f}'.format(loss_train.item()),
-          'acc_train: {:.4f}'.format(acc_train.item()),
-          'loss_val: {:.4f}'.format(loss_val.item()),
-          'acc_val: {:.4f}'.format(acc_val.item()),
-          'time: {:.4f}s'.format(time.time() - t))
+    if((epoch+1)%50 == 0):
+        print('Epoch: {:04d}'.format(epoch+1),
+              'loss_train: {:.4f}'.format(loss_train.item()),
+              'acc_train: {:.4f}'.format(acc_train.item()),
+              'loss_val: {:.4f}'.format(loss_val.item()),
+              'acc_val: {:.4f}'.format(acc_val.item()),
+              'time: {:.4f}s'.format(time.time() - t))
 
 
 def test():
@@ -131,20 +134,40 @@ def test():
     print_evaluation_metrics(output, labels, 'test')
 
 
+# 训练GCN，args.epochs次
+def train_epochs():
+    for epoch in range(args.epochs):
+        train(epoch)
+    print("Optimization Finished!")
+    print("Total time elapsed: {:.4f}s".format(time.time() - t_total))
+    test()
+
+
+# 一轮主动学习
+def active_learning(round):
+    print("第{:02d}轮主动学习".format(round+1))
+    model.apply(weight_reset)
+    train_epochs()
+
+
+
+# 重置网络的参数
+def weight_reset(m):
+    for layer in model.children():
+        if hasattr(layer, 'reset_parameters'):
+            layer.reset_parameters()
+
+
 if __name__ == '__main__':
     t_total = time.time()
-    if args.setting == 'no' or 'cost_sensitive':
-        # Train model
-        for epoch in range(args.epochs):
-            train(epoch)
-        print("Optimization Finished!")
-        print("Total time elapsed: {:.4f}s".format(time.time() - t_total))
-        # Testing
-        test()
+    if args.setting == 'no' or args.setting == 'cost_sensitive':
+        train_epochs()
     elif args.setting == 'active_learning':
-        print()
+        for i in range(args.rounds):
+            active_learning(i)
     elif args.setting == 'pseudo_active_learning':
-        print()
+        for i in range(args.rounds):
+            active_learning(i)
     else:
         print("no this setting: {args.setting}")
         exit()

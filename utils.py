@@ -19,6 +19,7 @@ def split_arti(labels, c_train_num):
     test_mask = []
     c_num_mat = np.zeros((num_classes, 3)).astype(int)
     # 每个类有25个节点用于验证集
+    # TODO: 只用了一小部分，那剩下的可以拿来做候选集合
     c_num_mat[:, 1] = 25
     # 每个类用55个节点用于测试集
     c_num_mat[:, 2] = 55
@@ -72,6 +73,9 @@ def split_mask(labels):
     test_mask = []
     # 生成一个num_classes * 3 的ndarray
     # 用来记录各个类 train val test的数量 0.25, 0.25, 0.5
+    # TODO：适当下调train的比例比如只用0.05(使训练集尽可能的优质), 这里可以增加一个指标imbalance radio，以最多的类为基准
+    # TODO：e.g. 最多的类的数量为1000，有两个稀有类一个是100，一个是200，稀有类程度就是0.1和0.2。这里可以选择稀有类就按1-imbalance radio
+    # TODO：的比例来
     c_num_mat = np.zeros((num_classes, 3)).astype(int)
     # 0是false 0以外是true
     for i in range(num_classes):
