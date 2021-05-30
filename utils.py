@@ -17,9 +17,10 @@ def split_arti(labels, c_train_num):
     train_mask = []
     val_mask = []
     test_mask = []
-    c_num_mat = np.zeros((num_classes, 3)).astype(int)
+    # 候选集
+    candidate_mask = []
+    c_num_mat = np.zeros((num_classes, 4)).astype(int)
     # 每个类有25个节点用于验证集
-    # TODO: 只用了一小部分，那剩下的可以拿来做候选集合
     c_num_mat[:, 1] = 25
     # 每个类用55个节点用于测试集
     c_num_mat[:, 2] = 55
@@ -36,6 +37,8 @@ def split_arti(labels, c_train_num):
 
         val_mask = val_mask + class_mask[c_train_num[i]:c_train_num[i]+25]
         test_mask = test_mask + class_mask[c_train_num[i]+25:c_train_num[i]+80]
+        candidate_mask = candidate_mask + class_mask[c_train_num[i]+80:]
+        c_num_mat[i, 3] = len(class_mask[c_train_num[i]+80:])
 
     random.shuffle(train_mask)
 
@@ -49,11 +52,14 @@ def split_arti(labels, c_train_num):
     test_mask = np.array(test_mask)
     test_mask = torch.from_numpy(test_mask)
 
+    candidate_mask = np.array(candidate_mask)
+    candidate_mask = torch.from_numpy(candidate_mask)
+
     c_num_mat = np.array(c_num_mat)
     c_num_mat = torch.from_numpy(c_num_mat)
     # c_num_mat = torch.LongTensor(c_num_mat)
     
-    return train_mask, val_mask, test_mask, c_num_mat
+    return train_mask, val_mask, test_mask, candidate_mask, c_num_mat
 
 
 # 如何随机生成 训练集 测试集？
@@ -71,12 +77,13 @@ def split_mask(labels):
     train_mask = []
     val_mask = []
     test_mask = []
+    candidate_mask = []
     # 生成一个num_classes * 3 的ndarray
-    # 用来记录各个类 train val test的数量 0.25, 0.25, 0.5
+    # 用来记录各个类 train val test candidate的数量 0.1, 0.1, 0.5, 0.3
     # TODO：适当下调train的比例比如只用0.05(使训练集尽可能的优质), 这里可以增加一个指标imbalance radio，以最多的类为基准
     # TODO：e.g. 最多的类的数量为1000，有两个稀有类一个是100，一个是200，稀有类程度就是0.1和0.2。这里可以选择稀有类就按1-imbalance radio
     # TODO：的比例来
-    c_num_mat = np.zeros((num_classes, 3)).astype(int)
+    c_num_mat = np.zeros((num_classes, 4)).astype(int)
     # 0是false 0以外是true
     for i in range(num_classes):
         # class_mask是某个类的索引
@@ -91,18 +98,21 @@ def split_mask(labels):
             if class_num < 3:
                 print("too small class type")
                 # 一般不会执行到这步，除非某个类的数量小于3
-                ipdb.set_trace()
+                # ipdb.set_trace()
             c_num_mat[i, 0] = 1
-            c_num_mat[i, 1] = 1
+            c_num_mat[i, 1] = 0
             c_num_mat[i, 2] = 1
+            c_num_mat[i, 3] = 1
         else:
-            c_num_mat[i, 0] = int(class_num / 4)
-            c_num_mat[i, 1] = int(class_num / 4)
-            c_num_mat[i, 2] = int(class_num / 2)
+            c_num_mat[i, 0] = int(class_num * 0.1)
+            c_num_mat[i, 1] = int(class_num * 0.1)
+            c_num_mat[i, 2] = int(class_num * 0.5)
+            c_num_mat[i, 3] = int(class_num * 0.3)
 
         train_mask += class_mask[:c_num_mat[i, 0]]
         val_mask += class_mask[c_num_mat[i, 0]:c_num_mat[i, 0] + c_num_mat[i, 1]]
         test_mask += class_mask[c_num_mat[i, 0] + c_num_mat[i, 1]:c_num_mat[i, 0] + c_num_mat[i, 1] + c_num_mat[i, 2]]
+        candidate_mask += class_mask[c_num_mat[i, 0] + c_num_mat[i, 1] + c_num_mat[i, 2]:]
 
     # 避免出现相同的类连在一起的情况
     random.shuffle(train_mask)
@@ -116,10 +126,13 @@ def split_mask(labels):
     test_mask = np.array(test_mask)
     test_mask = torch.from_numpy(test_mask)
 
+    candidate_mask = np.array(candidate_mask)
+    candidate_mask = torch.from_numpy(candidate_mask)
+
     c_num_mat = np.array(c_num_mat)
     c_num_mat = torch.from_numpy(c_num_mat)
     # 只有train_mask顺序是乱的，val_mask，test_mask会按照类别的顺序
-    return train_mask, val_mask, test_mask, c_num_mat
+    return train_mask, val_mask, test_mask, candidate_mask, c_num_mat
 
 
 # evaluation function
@@ -237,11 +250,10 @@ def get_degree_blog():
 
 
 def main():
-    features, labels, adj = load_data_blog()
-    train_mask, val_mask, test_mask, c_num_mat = split_mask(labels)
+    adj, features, labels = load_data_blog()
+    train_mask, val_mask, test_mask, candidate_mask, c_num_mat = split_mask(labels)
+    print(c_num_mat)
 
 
 if __name__ == '__main__':
-    get_degree_blog()
-# 要做的事：1. 在cora上测试evaluation  1.5.在cora上人为制造稀有类，重复1  2.在blog上跑GCN  3.在blog上测试evaluation
-# 4. 实现active learning
+    main()

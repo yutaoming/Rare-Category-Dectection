@@ -59,11 +59,11 @@ if args.dataset == 'cora':
             c_train_num.append(int(class_sample_num * args.im_ratio))
         else:
             c_train_num.append(class_sample_num)
-    train_mask, val_mask, test_mask, c_num_mat = split_arti(labels, c_train_num)
+    train_mask, val_mask, test_mask, candidate_mask, c_num_mat = split_arti(labels, c_train_num)
 elif args.dataset == 'blog':
     im_class_num = 14
     adj, features, labels = load_data_blog()
-    train_mask, val_mask, test_mask, c_num_mat = split_mask(labels)
+    train_mask, val_mask, test_mask, candidate_mask, c_num_mat = split_mask(labels)
 else:
     print("no this dataset: {args.dataset}")
     exit()
@@ -84,6 +84,7 @@ if args.cuda:
     train_mask = train_mask.cuda()
     val_mask = val_mask.cuda()
     test_mask = test_mask.cuda()
+    candidate_mask = candidate_mask.cuda()
 
 
 def train(epoch):
