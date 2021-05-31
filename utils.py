@@ -19,12 +19,15 @@ def split_arti(labels, c_train_num):
     test_mask = []
     # 候选集
     candidate_mask = []
+    # 再额外加一列imbalance ratio
     c_num_mat = np.zeros((num_classes, 4)).astype(int)
+    imbalance_ratio = np.zeros((num_classes, 1)).astype(float)
     # 每个类有25个节点用于验证集
     c_num_mat[:, 1] = 25
     # 每个类用55个节点用于测试集
     c_num_mat[:, 2] = 55
 
+    num_max = 0
     for i in range(num_classes):
         # 得到i的索引
         class_mask = (labels == i).nonzero()[:, -1].tolist()
@@ -39,6 +42,11 @@ def split_arti(labels, c_train_num):
         test_mask = test_mask + class_mask[c_train_num[i]+25:c_train_num[i]+80]
         candidate_mask = candidate_mask + class_mask[c_train_num[i]+80:]
         c_num_mat[i, 3] = len(class_mask[c_train_num[i]+80:])
+        if(num_max < len(class_mask)):
+            num_max = len(class_mask)
+    for i in range(num_classes):
+        class_mask = (labels == i).nonzero()[:, -1].tolist()
+        imbalance_ratio[i, 0] = len(class_mask)/float(num_max)
 
     random.shuffle(train_mask)
 
@@ -58,8 +66,10 @@ def split_arti(labels, c_train_num):
     c_num_mat = np.array(c_num_mat)
     c_num_mat = torch.from_numpy(c_num_mat)
     # c_num_mat = torch.LongTensor(c_num_mat)
+    imbalance_ratio = np.array(imbalance_ratio)
+    imbalance_ratio = torch.from_numpy(imbalance_ratio)
     
-    return train_mask, val_mask, test_mask, candidate_mask, c_num_mat
+    return train_mask, val_mask, test_mask, candidate_mask, c_num_mat, imbalance_ratio
 
 
 # 如何随机生成 训练集 测试集？
@@ -84,7 +94,9 @@ def split_mask(labels):
     # TODO：e.g. 最多的类的数量为1000，有两个稀有类一个是100，一个是200，稀有类程度就是0.1和0.2。这里可以选择稀有类就按1-imbalance radio
     # TODO：的比例来
     c_num_mat = np.zeros((num_classes, 4)).astype(int)
+    imbalance_ratio = np.zeros((num_classes, 1)).astype(float)
     # 0是false 0以外是true
+    num_max = 0
     for i in range(num_classes):
         # class_mask是某个类的索引
         class_mask = (labels == i).nonzero()[:, -1].tolist()
@@ -113,6 +125,11 @@ def split_mask(labels):
         val_mask += class_mask[c_num_mat[i, 0]:c_num_mat[i, 0] + c_num_mat[i, 1]]
         test_mask += class_mask[c_num_mat[i, 0] + c_num_mat[i, 1]:c_num_mat[i, 0] + c_num_mat[i, 1] + c_num_mat[i, 2]]
         candidate_mask += class_mask[c_num_mat[i, 0] + c_num_mat[i, 1] + c_num_mat[i, 2]:]
+        if (num_max < len(class_mask)):
+            num_max = len(class_mask)
+    for i in range(num_classes):
+        class_mask = (labels == i).nonzero()[:, -1].tolist()
+        imbalance_ratio[i, 0] = len(class_mask)/float(num_max)
 
     # 避免出现相同的类连在一起的情况
     random.shuffle(train_mask)
@@ -132,7 +149,10 @@ def split_mask(labels):
     c_num_mat = np.array(c_num_mat)
     c_num_mat = torch.from_numpy(c_num_mat)
     # 只有train_mask顺序是乱的，val_mask，test_mask会按照类别的顺序
-    return train_mask, val_mask, test_mask, candidate_mask, c_num_mat
+    imbalance_ratio = np.array(imbalance_ratio)
+    imbalance_ratio = torch.from_numpy(imbalance_ratio)
+
+    return train_mask, val_mask, test_mask, candidate_mask, c_num_mat, imbalance_ratio
 
 
 # evaluation function
@@ -251,8 +271,8 @@ def get_degree_blog():
 
 def main():
     adj, features, labels = load_data_blog()
-    train_mask, val_mask, test_mask, candidate_mask, c_num_mat = split_mask(labels)
-    print(c_num_mat)
+    train_mask, val_mask, test_mask, candidate_mask, c_num_mat, imbalance_ratio = split_mask(labels)
+    print(imbalance_ratio)
 
 
 if __name__ == '__main__':

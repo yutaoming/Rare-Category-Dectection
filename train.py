@@ -51,7 +51,7 @@ if args.cuda:
 if args.dataset == 'cora':
     adj, features, labels = load_data_cora()
     im_class_num = 3
-    class_sample_num = 20
+    class_sample_num = 10
     # for artificial imbalanced setting: only the last im_class_num classes are imbalanced
     c_train_num = []
     for i in range(labels.max().item() + 1):
@@ -59,11 +59,11 @@ if args.dataset == 'cora':
             c_train_num.append(int(class_sample_num * args.im_ratio))
         else:
             c_train_num.append(class_sample_num)
-    train_mask, val_mask, test_mask, candidate_mask, c_num_mat = split_arti(labels, c_train_num)
+    train_mask, val_mask, test_mask, candidate_mask, c_num_mat, imbalance_ratio = split_arti(labels, c_train_num)
 elif args.dataset == 'blog':
     im_class_num = 14
     adj, features, labels = load_data_blog()
-    train_mask, val_mask, test_mask, candidate_mask, c_num_mat = split_mask(labels)
+    train_mask, val_mask, test_mask, candidate_mask, c_num_mat, imbalance_ratio = split_mask(labels)
 else:
     print("no this dataset: {args.dataset}")
     exit()
@@ -101,7 +101,7 @@ def train(epoch):
         loss_train = F.cross_entropy(output[train_mask], labels[train_mask], weight=weight.float())
     # 使用常规的损失函数
     else:
-        loss_train = F.nll_loss(output[train_mask], labels[train_mask])
+        loss_train = F.nll_loss(F.log_softmax(output[train_mask]), labels[train_mask])
     acc_train = accuracy(output[train_mask], labels[train_mask])
     loss_train.backward()
     optimizer.step()
@@ -144,11 +144,47 @@ def train_epochs():
     test()
 
 
-# 一轮主动学习
-def active_learning(round):
+# 一轮主动学习 主动学习本质上来说就是改变了训练集和候选集
+def active_learning(round, train_mask, candidate_mask):
     print("第{:02d}轮主动学习".format(round+1))
     model.apply(weight_reset)
     train_epochs()
+    # 此时有了一个训练好的model
+    model.eval()
+    # 以cora为例，output是2708*7的tensor
+    output = model(features, adj)
+    output = F.softmax(output, dim=1).tolist()
+    for i in range(len(output)):
+        output[i].append(i)
+    output = np.array(output)
+
+    # 把train_mask和candidate_mask转化成list，方便操作
+    train_mask_temp = train_mask.tolist()
+    candidate_mask_temp = candidate_mask.tolist()
+    for i in range(c_num_mat.shape[0]):
+        output_candidate = torch.from_numpy(output)[candidate_mask_temp]
+        output_candidate = output_candidate.tolist()
+        # temp用来储存排好序的output
+        temp = sorted(output_candidate, key=(lambda x:x[i]), reverse=True)
+
+        # print(len(output_candidate))
+        # print(len(candidate_mask_temp))
+        # 计算对该类取几个放入训练集
+        # 注意！！ (1-imbalance_ratio)*5*rounds < len(candidate_mask)
+        for j in range(int((1-imbalance_ratio[i])*5)):
+            train_mask_temp.append(temp[j][-1])
+            candidate_mask_temp.remove(temp[j][-1])
+        # 如何从张量中找到某个元素并删除?
+    train_mask_temp = np.array(train_mask_temp)
+    train_mask_temp = torch.from_numpy(train_mask_temp).long()
+    candidate_mask_temp = np.array(candidate_mask_temp)
+    candidate_mask_temp = torch.from_numpy(candidate_mask_temp).long()
+    print(len(train_mask_temp))
+    return train_mask_temp, candidate_mask_temp
+
+
+    # 得到预测结果
+    # 对候选集中的结果排序
 
 
 
@@ -165,7 +201,7 @@ if __name__ == '__main__':
         train_epochs()
     elif args.setting == 'active_learning':
         for i in range(args.rounds):
-            active_learning(i)
+            train_mask, candidate_mask = active_learning(i, train_mask, candidate_mask)
     elif args.setting == 'pseudo_active_learning':
         for i in range(args.rounds):
             active_learning(i)
