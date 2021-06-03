@@ -11,10 +11,12 @@ import torch.optim as optim
 
 from utils import accuracy, split_mask, split_arti, print_evaluation_metrics
 from GCN.pytorch.models import GCN
+from SAGE.models import Sage
 from load_data import load_data_cora, load_data_blog
 
 # Training settings
 parser = argparse.ArgumentParser()
+parser.add_argument('--model', type=str, default='GCN')
 parser.add_argument('--dataset', type=str, default='cora')
 parser.add_argument('--no-cuda', action='store_true', default=False,
                     help='Disables CUDA training.')
@@ -70,10 +72,16 @@ else:
 t = time.time()
 
 # Model and optimizer
-model = GCN(nfeat=features.shape[1],
-            nhid=args.hidden,
-            nclass=labels.max().item() + 1,
-            dropout=args.dropout)
+if args.model == 'GCN':
+    model = GCN(nfeat=features.shape[1],
+                nhid=args.hidden,
+                nclass=labels.max().item() + 1,
+                dropout=args.dropout)
+elif args.model == 'SAGE':
+    model = Sage(nfeat=features.shape[1],
+                nhid=args.hidden,
+                nclass=labels.max().item() + 1,
+                dropout=args.dropout)
 
 
 if args.cuda:
@@ -171,8 +179,10 @@ def active_learning(round, train_mask, candidate_mask):
         # print(len(candidate_mask_temp))
         # 计算对该类取几个放入训练集
         # 注意！！ (1-imbalance_ratio)*5*rounds < len(candidate_mask)
-        for j in range(int((1-imbalance_ratio[i])*5)):
+        for j in range(int((1-imbalance_ratio[i])*2)):
             train_mask_temp.append(temp[j][-1])
+            index = int(temp[j][-1])
+            print("当前选择的是最有可能是{:d}类的样本，它实际标签是{:d}类".format(i,labels[index]))
             candidate_mask_temp.remove(temp[j][-1])
         # 如何从张量中找到某个元素并删除?
     train_mask_temp = np.array(train_mask_temp)
