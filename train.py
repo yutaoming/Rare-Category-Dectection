@@ -109,7 +109,7 @@ def train(epoch):
         loss_train = F.cross_entropy(output[train_mask], labels[train_mask], weight=weight.float())
     # 使用常规的损失函数
     else:
-        loss_train = F.nll_loss(F.log_softmax(output[train_mask]), labels[train_mask])
+        loss_train = F.nll_loss(output[train_mask], labels[train_mask])
     acc_train = accuracy(output[train_mask], labels[train_mask])
     loss_train.backward()
     optimizer.step()
